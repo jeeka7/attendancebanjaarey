@@ -2,6 +2,10 @@ import streamlit as st
 import sqlite3
 import datetime
 
+# --- Admin credentials (set your own here) ---
+ADMIN_USER = "admin"
+ADMIN_PASS = "supersecret"  # CHANGE THIS TO YOUR ACTUAL PASSWORD
+
 # --- Database Setup ---
 def get_connection():
     return sqlite3.connect("banjaarey.db", check_same_thread=False)
@@ -67,54 +71,87 @@ def get_dates_by_banjaara(conn, banjaara_id):
 conn = get_connection()
 create_tables(conn)
 
+# --- Admin Login ---
+def check_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "login_attempted" not in st.session_state:
+        st.session_state.login_attempted = False
+
+    if not st.session_state.logged_in:
+        st.subheader("Admin Login Required")
+        with st.form("login_form", clear_on_submit=True):
+            user = st.text_input("Username")
+            pw = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            if submitted:
+                if user == ADMIN_USER and pw == ADMIN_PASS:
+                    st.session_state.logged_in = True
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.session_state.login_attempted = True
+                    st.error("Incorrect username or password")
+        return False
+    return True
+
 # --- Streamlit UI ---
 st.title("Banjaarey Attendance Tracker")
+tabs = ["Manage Banjaarey", "Take Attendance", "Search Attendance"]
+tab1, tab2, tab3 = st.tabs(tabs)
 
-tab1, tab2, tab3 = st.tabs(["Manage Banjaarey", "Take Attendance", "Search Attendance"])
-
+# Check login for admin-only tabs (tab1 and tab2)
 with tab1:
-    st.header("Add Banjaara")
-    name = st.text_input("Name")
-    if st.button("Add"):
-        if name.strip():
-            if add_banjaara(conn, name.strip()):
-                st.success(f"Added {name}")
-                st.rerun()  # Use new rerun
+    is_admin = check_login()
+    if is_admin:
+        st.header("Add Banjaara")
+        name = st.text_input("Name")
+        if st.button("Add"):
+            if name.strip():
+                if add_banjaara(conn, name.strip()):
+                    st.success(f"Added {name}")
+                    st.rerun()
+                else:
+                    st.warning("Name already exists!")
             else:
-                st.warning("Name already exists!")
-        else:
-            st.warning("Enter a name.")
+                st.warning("Enter a name.")
 
-    st.header("Current Banjaarey")
-    banjaarey = get_banjaarey(conn)
-    delete_id = None
-    for banjaara_id, banjaara_name in banjaarey:
-        col1, col2 = st.columns([3,1])
-        col1.write(banjaara_name)
-        if col2.button("Delete", key=f"del_{banjaara_id}"):
-            delete_id = banjaara_id
-    # Do deletion after the loop
-    if delete_id is not None:
-        delete_banjaara(conn, delete_id)
-        st.rerun()
+        st.header("Current Banjaarey")
+        banjaarey = get_banjaarey(conn)
+        delete_id = None
+        for banjaara_id, banjaara_name in banjaarey:
+            col1, col2 = st.columns([3,1])
+            col1.write(banjaara_name)
+            if col2.button("Delete", key=f"del_{banjaara_id}"):
+                delete_id = banjaara_id
+        if delete_id is not None:
+            delete_banjaara(conn, delete_id)
+            st.rerun()
+    else:
+        st.info("Admin login is required to manage Banjaarey.")
 
 with tab2:
-    st.header("Mark Attendance")
-    banjaarey = get_banjaarey(conn)
-    if banjaarey:
-        today = st.date_input("Date", datetime.date.today())
-        selected = st.multiselect(
-            "Select present banjaarey:",
-            options=[b[1] for b in banjaarey]
-        )
-        if st.button("Mark Attendance"):
-            present_ids = [b[0] for b in banjaarey if b[1] in selected]
-            mark_attendance(conn, str(today), present_ids)
-            st.success("Attendance marked!")
+    is_admin = check_login()
+    if is_admin:
+        st.header("Mark Attendance")
+        banjaarey = get_banjaarey(conn)
+        if banjaarey:
+            today = st.date_input("Date", datetime.date.today())
+            selected = st.multiselect(
+                "Select present banjaarey:",
+                options=[b[1] for b in banjaarey]
+            )
+            if st.button("Mark Attendance"):
+                present_ids = [b[0] for b in banjaarey if b[1] in selected]
+                mark_attendance(conn, str(today), present_ids)
+                st.success("Attendance marked!")
+        else:
+            st.info("No banjaarey found. Please add them first (admin only).")
     else:
-        st.info("No banjaarey found. Please add them first.")
+        st.info("Admin login is required to mark attendance.")
 
 with tab3:
+    # Anyone can view attendance, no login required
     st.header("Attendance Search")
     search_mode = st.radio("Search by", ["Date", "Banjaara"])
 
@@ -138,4 +175,4 @@ with tab3:
             else:
                 st.info(f"No attendance found for {selected_name}.")
         else:
-            st.info("No banjaarey available. Please add some first.")
+            st.info("No banjaarey available. Please add some first (admin only).")
