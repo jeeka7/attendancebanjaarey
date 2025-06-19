@@ -61,11 +61,27 @@ def get_attendance_by_date(conn, date):
     ).fetchall()
     return [row[0] for row in rows]
 
+def get_attendance_ids_by_date(conn, date):
+    # Returns banjaara_id's who are present for the date
+    rows = conn.execute(
+        "SELECT a.banjaara_id FROM attendance a WHERE a.date = ?", (date,)
+    ).fetchall()
+    return [row[0] for row in rows]
+
 def get_dates_by_banjaara(conn, banjaara_id):
     rows = conn.execute(
         "SELECT date FROM attendance WHERE banjaara_id = ? ORDER BY date", (banjaara_id,)
     ).fetchall()
     return [row[0] for row in rows]
+
+def delete_attendance_for_date(conn, date):
+    conn.execute("DELETE FROM attendance WHERE date = ?", (date,))
+    conn.commit()
+
+def update_attendance_for_date(conn, date, present_ids):
+    # Remove all for this date, then re-add
+    delete_attendance_for_date(conn, date)
+    mark_attendance(conn, date, present_ids)
 
 # --- Initialize DB ---
 conn = get_connection()
@@ -96,7 +112,7 @@ st.title("Banjaarey Attendance Tracker")
 # --- Check login only once, before creating tabs ---
 is_admin = check_login()
 
-tab1, tab2, tab3 = st.tabs(["Manage Banjaarey", "Take Attendance", "Search Attendance"])
+tab1, tab2, tab3 = st.tabs(["Manage Banjaarey", "Take Attendance", "Search/Modify Attendance"])
 
 with tab1:
     if is_admin:
@@ -146,8 +162,8 @@ with tab2:
         st.info("Admin login is required to mark attendance.")
 
 with tab3:
-    st.header("Attendance Search")
-    search_mode = st.radio("Search by", ["Date", "Banjaara"])
+    st.header("Attendance Search / Modify")
+    search_mode = st.radio("Search by", ["Date", "Banjaara", "Modify by Date"])
 
     if search_mode == "Date":
         date = st.date_input("Select date", datetime.date.today(), key="search_date")
@@ -157,7 +173,7 @@ with tab3:
         else:
             st.info("No attendance recorded for this date.")
 
-    else:  # By Banjaara
+    elif search_mode == "Banjaara":
         banjaarey = get_banjaarey(conn)
         banjaara_names = [b[1] for b in banjaarey]
         if banjaara_names:
@@ -170,3 +186,37 @@ with tab3:
                 st.info(f"No attendance found for {selected_name}.")
         else:
             st.info("No banjaarey available. Please add some first (admin only).")
+
+    elif search_mode == "Modify by Date":
+        if is_admin:
+            st.subheader("Modify Attendance for a Date")
+            all_dates = conn.execute("SELECT DISTINCT date FROM attendance ORDER BY date DESC").fetchall()
+            all_dates = [row[0] for row in all_dates]
+            if all_dates:
+                mod_date = st.selectbox("Select a date to modify", all_dates, key="mod_date")
+                # Show current attendance for that date
+                present_ids = get_attendance_ids_by_date(conn, mod_date)
+                banjaarey = get_banjaarey(conn)
+                present_names = [b[1] for b in banjaarey if b[0] in present_ids]
+                st.write(f"Current present: {', '.join(present_names) if present_names else 'None'}")
+
+                # Provide form to modify
+                selected = st.multiselect(
+                    "Modify present banjaarey for this date:",
+                    options=[b[1] for b in banjaarey],
+                    default=present_names,
+                    key="mod_select"
+                )
+                if st.button("Update Attendance", key="update_attendance"):
+                    new_present_ids = [b[0] for b in banjaarey if b[1] in selected]
+                    update_attendance_for_date(conn, mod_date, new_present_ids)
+                    st.success("Attendance updated!")
+                    st.rerun()
+                if st.button("Delete This Attendance Record", key="delete_attendance"):
+                    delete_attendance_for_date(conn, mod_date)
+                    st.success("Attendance record deleted for this date!")
+                    st.rerun()
+            else:
+                st.info("No attendance records available to modify.")
+        else:
+            st.info("Admin login is required to modify attendance.")
