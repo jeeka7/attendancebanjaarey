@@ -79,6 +79,7 @@ with tab1:
         if name.strip():
             if add_banjaara(name.strip()):
                 st.success(f"Added {name}")
+                st.experimental_rerun()
             else:
                 st.warning("Name already exists!")
         else:
@@ -91,7 +92,7 @@ with tab1:
         col1.write(banjaara_name)
         if col2.button("Delete", key=f"del_{banjaara_id}"):
             delete_banjaara(banjaara_id)
-            st.experimental_rerun()
+            st.experimental_rerun()  # Immediately rerun after deletion to avoid referencing deleted data
 
 with tab2:
     st.header("Mark Attendance")
@@ -125,10 +126,13 @@ with tab3:
     else:  # By Banjaara
         banjaarey = get_banjaarey()
         banjaara_names = [b[1] for b in banjaarey]
-        selected_name = st.selectbox("Select Banjaara", banjaara_names)
-        banjaara_id = [b[0] for b in banjaarey if b[1] == selected_name][0]
-        dates = get_dates_by_banjaara(banjaara_id)
-        if dates:
-            st.success(f"{selected_name} was present on: {', '.join(dates)}")
+        if banjaara_names:
+            selected_name = st.selectbox("Select Banjaara", banjaara_names)
+            banjaara_id = [b[0] for b in banjaarey if b[1] == selected_name][0]
+            dates = get_dates_by_banjaara(banjaara_id)
+            if dates:
+                st.success(f"{selected_name} was present on: {', '.join(dates)}")
+            else:
+                st.info(f"No attendance found for {selected_name}.")
         else:
-            st.info(f"No attendance found for {selected_name}.")
+            st.info("No banjaarey available. Please add some first.")
