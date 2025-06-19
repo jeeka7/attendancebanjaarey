@@ -2,39 +2,42 @@ import streamlit as st
 import sqlite3
 import datetime
 
-# ... [DB setup and functions stay the same] ...
+def create_tables(conn):
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS banjaarey (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            banjaara_id INTEGER,
+            date TEXT,
+            FOREIGN KEY (banjaara_id) REFERENCES banjaarey(id),
+            UNIQUE (banjaara_id, date)
+        )
+    ''')
 
-st.title("Banjaarey Attendance Tracker")
+def get_connection():
+    return sqlite3.connect("banjaarey.db", check_same_thread=False)
 
-tab1, tab2, tab3 = st.tabs(["Manage Banjaarey", "Take Attendance", "Search Attendance"])
+def add_banjaara(name):
+    try:
+        conn.execute("INSERT INTO banjaarey (name) VALUES (?)", (name,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
 
-with tab1:
-    st.header("Add Banjaara")
-    name = st.text_input("Name")
-    if st.button("Add"):
-        if name.strip():
-            if add_banjaara(name.strip()):
-                st.success(f"Added {name}")
-                st.experimental_rerun()
-            else:
-                st.warning("Name already exists!")
-        else:
-            st.warning("Enter a name.")
+def get_banjaarey():
+    return conn.execute("SELECT id, name FROM banjaarey ORDER BY name").fetchall()
 
-    st.header("Current Banjaarey")
-    banjaarey = get_banjaarey()
+# ... (other function definitions here)
 
-    # Use session state to check if a delete was requested
-    for banjaara_id, banjaara_name in banjaarey:
-        col1, col2 = st.columns([3,1])
-        col1.write(banjaara_name)
-        if col2.button("Delete", key=f"del_{banjaara_id}"):
-            # Store the id in session state instead of rerunning in the loop
-            st.session_state['delete_id'] = banjaara_id
-            st.experimental_rerun()
+conn = get_connection()
+create_tables(conn)
 
-    # After the loop, check if a delete was requested
-    if 'delete_id' in st.session_state:
-        delete_banjaara(st.session_state['delete_id'])
-        del st.session_state['delete_id']
-        st.experimental_rerun()
+# Now you can use get_banjaarey()
+banjaarey = get_banjaarey()
+# ... rest of your Streamlit code ...
