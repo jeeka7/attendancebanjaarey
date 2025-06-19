@@ -79,7 +79,7 @@ with tab1:
         if name.strip():
             if add_banjaara(conn, name.strip()):
                 st.success(f"Added {name}")
-                st.experimental_rerun()
+                st.rerun()  # Use new rerun
             else:
                 st.warning("Name already exists!")
         else:
@@ -96,7 +96,7 @@ with tab1:
     # Do deletion after the loop
     if delete_id is not None:
         delete_banjaara(conn, delete_id)
-        st.experimental_rerun()
+        st.rerun()
 
 with tab2:
     st.header("Mark Attendance")
