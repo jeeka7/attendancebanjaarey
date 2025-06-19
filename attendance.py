@@ -2,9 +2,9 @@ import streamlit as st
 import sqlite3
 import datetime
 
-# --- Admin credentials (set your own here) ---
+# --- Admin credentials (change these!) ---
 ADMIN_USER = "admin"
-ADMIN_PASS = "supersecret"  # CHANGE THIS TO YOUR ACTUAL PASSWORD
+ADMIN_PASS = "supersecret"  # CHANGE THIS TO YOUR OWN PASSWORD
 
 # --- Database Setup ---
 def get_connection():
@@ -75,12 +75,8 @@ create_tables(conn)
 def check_login():
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-    if "login_attempted" not in st.session_state:
-        st.session_state.login_attempted = False
-
     if not st.session_state.logged_in:
-        st.subheader("Admin Login Required")
-        with st.form("login_form", clear_on_submit=True):
+        with st.form("login_form"):
             user = st.text_input("Username")
             pw = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Login")
@@ -90,19 +86,19 @@ def check_login():
                     st.success("Login successful!")
                     st.rerun()
                 else:
-                    st.session_state.login_attempted = True
                     st.error("Incorrect username or password")
         return False
     return True
 
 # --- Streamlit UI ---
 st.title("Banjaarey Attendance Tracker")
-tabs = ["Manage Banjaarey", "Take Attendance", "Search Attendance"]
-tab1, tab2, tab3 = st.tabs(tabs)
 
-# Check login for admin-only tabs (tab1 and tab2)
+# --- Check login only once, before creating tabs ---
+is_admin = check_login()
+
+tab1, tab2, tab3 = st.tabs(["Manage Banjaarey", "Take Attendance", "Search Attendance"])
+
 with tab1:
-    is_admin = check_login()
     if is_admin:
         st.header("Add Banjaara")
         name = st.text_input("Name")
@@ -131,7 +127,6 @@ with tab1:
         st.info("Admin login is required to manage Banjaarey.")
 
 with tab2:
-    is_admin = check_login()
     if is_admin:
         st.header("Mark Attendance")
         banjaarey = get_banjaarey(conn)
@@ -151,7 +146,6 @@ with tab2:
         st.info("Admin login is required to mark attendance.")
 
 with tab3:
-    # Anyone can view attendance, no login required
     st.header("Attendance Search")
     search_mode = st.radio("Search by", ["Date", "Banjaara"])
 
